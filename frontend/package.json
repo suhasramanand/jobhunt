@@ -2,6 +2,7 @@
   "name": "job-aggregator-frontend",
   "version": "1.0.0",
   "private": true,
+  "homepage": "https://suhasramanand.github.io/jobhunt",
   "dependencies": {
     "@radix-ui/react-dropdown-menu": "^2.0.6",
     "@radix-ui/react-select": "^2.0.0",

@@ -36,6 +36,8 @@ jobs:
       run: |
         cd scraper
         python scrape_jobs.py
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
     
     - name: Check for changes
       id: verify-changed-files

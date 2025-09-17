@@ -24,7 +24,7 @@ function App() {
       try {
         setLoading(true);
         // Fetch the CSV file from the GitHub repo
-        const response = await fetch('https://raw.githubusercontent.com/suhasramanand/job-aggregator/main/data/jobs.csv');
+        const response = await fetch('https://raw.githubusercontent.com/suhasramanand/jobhunt/main/data/jobs.csv');
         
         if (!response.ok) {
           throw new Error(`Failed to fetch jobs: ${response.status}`);

@@ -1,6 +1,8 @@
-# Job Aggregator
+# Job Hunt
 
 A full-stack job aggregator that automatically scrapes entry-level software engineering positions with visa sponsorship from major job boards and company career sites. The system runs every 2 hours via GitHub Actions and provides a modern React frontend for browsing and filtering job opportunities.
+
+🌐 **Live Demo**: https://suhasramanand.github.io/jobhunt
 
 ## 🎯 Features
 
@@ -15,7 +17,7 @@ A full-stack job aggregator that automatically scrapes entry-level software engi
 ## 🏗️ Architecture
 
 ```
-job-aggregator/
+jobhunt/
 ├── scraper/                 # Python scraper
 │   ├── scrape_jobs.py      # Main scraper script
 │   └── requirements.txt    # Python dependencies
@@ -43,8 +45,8 @@ job-aggregator/
 ### 1. Clone the Repository
 
 ```bash
-git clone https://github.com/suhasramanand/job-aggregator.git
-cd job-aggregator
+git clone https://github.com/suhasramanand/jobhunt.git
+cd jobhunt
 ```
 
 ### 2. Set Up the Scraper
