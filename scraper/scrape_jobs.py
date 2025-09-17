@@ -231,10 +231,15 @@ class JobScraper:
                     location = await location_elem.inner_text() if location_elem else 'Remote'
                     snippet = await snippet_elem.inner_text() if snippet_elem else ''
                     
-                    # Get job URL
-                    job_url = await title_elem.get_attribute('href')
-                    if job_url and not job_url.startswith('http'):
-                        job_url = urljoin('https://www.indeed.com', job_url)
+                    # Get job URL - Indeed uses data-jk attribute for job IDs
+                    job_id = await element.get_attribute('data-jk')
+                    if job_id:
+                        job_url = f"https://www.indeed.com/viewjob?jk={job_id}"
+                    else:
+                        # Fallback to href if data-jk not available
+                        job_url = await title_elem.get_attribute('href')
+                        if job_url and not job_url.startswith('http'):
+                            job_url = urljoin('https://www.indeed.com', job_url)
                     
                     # Get posted date
                     posted_elem = await element.query_selector('[data-testid="myJobsStateDate"]')
@@ -250,14 +255,19 @@ class JobScraper:
                     if not self.check_visa_sponsorship(job_text):
                         continue
                     
+                    # Validate that we have a real URL
+                    if not job_url or not job_url.startswith('http'):
+                        logger.warning(f"Skipping job with invalid URL: {job_url}")
+                        continue
+                    
                     # Generate job data
                     job_data = {
-                        'id': self.generate_job_id(title, company, job_url or ''),
+                        'id': self.generate_job_id(title, company, job_url),
                         'title': title.strip(),
                         'company': company.strip(),
                         'location': location.strip(),
                         'role': self.categorize_role(title, snippet),
-                        'post_url': job_url or '',
+                        'post_url': job_url,
                         'posted_at': posted_at.strip(),
                         'experience_text': snippet[:200] + '...' if len(snippet) > 200 else snippet,
                         'visa_sponsorship': True,
@@ -308,10 +318,14 @@ class JobScraper:
                     company = await company_elem.inner_text() if company_elem else 'Google'
                     location = await location_elem.inner_text() if location_elem else 'Various'
                     
-                    # Get job URL
+                    # Get job URL - Google Careers uses specific job ID in URL
                     job_url = await title_elem.get_attribute('href')
-                    if job_url and not job_url.startswith('http'):
-                        job_url = urljoin('https://careers.google.com', job_url)
+                    if job_url:
+                        if not job_url.startswith('http'):
+                            job_url = urljoin('https://careers.google.com', job_url)
+                    else:
+                        # Skip if no URL found
+                        continue
                     
                     # For Google, assume visa sponsorship is available
                     job_text = f"{title} {company}".lower()
@@ -319,13 +333,18 @@ class JobScraper:
                     if not self.check_experience_requirement(job_text):
                         continue
                     
+                    # Validate that we have a real URL
+                    if not job_url or not job_url.startswith('http'):
+                        logger.warning(f"Skipping Google job with invalid URL: {job_url}")
+                        continue
+                    
                     job_data = {
-                        'id': self.generate_job_id(title, company, job_url or ''),
+                        'id': self.generate_job_id(title, company, job_url),
                         'title': title.strip(),
                         'company': company.strip(),
                         'location': location.strip(),
                         'role': self.categorize_role(title, ''),
-                        'post_url': job_url or '',
+                        'post_url': job_url,
                         'posted_at': 'Recently',  # Google doesn't show specific dates
                         'experience_text': 'Entry level software engineering position',
                         'visa_sponsorship': True,  # Google typically sponsors
