@@ -1,11 +1,14 @@
 import React, { useState, useEffect } from 'react';
 import Papa from 'papaparse';
-import { Search, Filter, ExternalLink, MapPin, Building2, Clock, Users, Globe } from 'lucide-react';
+import { Search, Filter, ExternalLink, MapPin, Building2, Clock, Users, Globe, Menu, CheckCircle, XCircle } from 'lucide-react';
 import { Button } from './components/ui/button';
 import { Input } from './components/ui/input';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from './components/ui/select';
 import { Switch } from './components/ui/switch';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from './components/ui/card';
+import Sidebar from './components/Sidebar';
+import ApplicationModal from './components/ApplicationModal';
+import { useApplications } from './hooks/useApplications';
 
 const ROLES = ['All', 'SDE', 'SWE', 'DevOps', 'Cloud', 'AI/ML'];
 
@@ -17,6 +20,12 @@ function App() {
   const [searchTerm, setSearchTerm] = useState('');
   const [selectedRole, setSelectedRole] = useState('All');
   const [visaSponsorshipOnly, setVisaSponsorshipOnly] = useState(false);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [activeView, setActiveView] = useState('all-jobs');
+  const [modalOpen, setModalOpen] = useState(false);
+  const [selectedJob, setSelectedJob] = useState(null);
+  
+  const { addApplication, getApplicationStatus, getAppliedJobs } = useApplications();
 
   // Load jobs data from GitHub repo
   useEffect(() => {
@@ -54,9 +63,25 @@ function App() {
     loadJobs();
   }, []);
 
-  // Filter jobs based on search term, role, and visa sponsorship
+  // Filter jobs based on view, search term, role, and visa sponsorship
   useEffect(() => {
     let filtered = jobs;
+
+    // Filter by view type
+    if (activeView === 'recent-jobs') {
+      const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+      filtered = filtered.filter(job => {
+        try {
+          const jobDate = new Date(job.posted_at || job.scraped_at);
+          return jobDate >= oneHourAgo;
+        } catch (error) {
+          return false;
+        }
+      });
+    } else if (activeView === 'my-applications') {
+      const appliedJobIds = getAppliedJobs().map(app => app.jobId);
+      filtered = filtered.filter(job => appliedJobIds.includes(job.id));
+    }
 
     // Filter by search term (company or title)
     if (searchTerm) {
@@ -77,7 +102,7 @@ function App() {
     }
 
     setFilteredJobs(filtered);
-  }, [jobs, searchTerm, selectedRole, visaSponsorshipOnly]);
+  }, [jobs, activeView, searchTerm, selectedRole, visaSponsorshipOnly, getAppliedJobs]);
 
   const formatDate = (dateString) => {
     try {
@@ -103,6 +128,25 @@ function App() {
       'AI/ML': 'bg-pink-100 text-pink-800'
     };
     return colors[role] || 'bg-gray-100 text-gray-800';
+  };
+
+  const handleApplyClick = (job) => {
+    setSelectedJob(job);
+    setModalOpen(true);
+  };
+
+  const handleApplicationConfirm = (job, applied) => {
+    addApplication(job, applied);
+  };
+
+  const getApplicationStatusIcon = (jobId) => {
+    const status = getApplicationStatus(jobId);
+    if (status === 'applied') {
+      return <CheckCircle className="h-4 w-4 text-green-600" />;
+    } else if (status === 'not_applied') {
+      return <XCircle className="h-4 w-4 text-red-600" />;
+    }
+    return null;
   };
 
   if (loading) {
@@ -136,11 +180,27 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
+      {/* Sidebar */}
+      <Sidebar 
+        isOpen={sidebarOpen}
+        onClose={() => setSidebarOpen(false)}
+        activeView={activeView}
+        onViewChange={setActiveView}
+      />
+
       {/* Header */}
       <header className="bg-white shadow-sm border-b">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex justify-between items-center h-16">
             <div className="flex items-center space-x-3">
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSidebarOpen(true)}
+                className="lg:hidden"
+              >
+                <Menu className="h-5 w-5" />
+              </Button>
               <Users className="h-8 w-8 text-blue-600" />
               <h1 className="text-2xl font-bold text-gray-900">Job Aggregator</h1>
             </div>
@@ -152,7 +212,19 @@ function App() {
         </div>
       </header>
 
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <div className="flex">
+        {/* Sidebar for desktop */}
+        <div className="hidden lg:block w-64 bg-white shadow-sm">
+          <Sidebar 
+            isOpen={true}
+            onClose={() => {}}
+            activeView={activeView}
+            onViewChange={setActiveView}
+          />
+        </div>
+
+        {/* Main content */}
+        <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Filters */}
         <Card className="mb-8">
           <CardHeader>
@@ -271,33 +343,52 @@ function App() {
                     )}
                   </div>
                   
-                  {job.post_url && (
+                  <div className="flex space-x-2">
+                    {job.post_url && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        className="flex-1"
+                        onClick={() => window.open(job.post_url, '_blank')}
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        View Job
+                      </Button>
+                    )}
                     <Button
                       variant="outline"
                       size="sm"
-                      className="w-full"
-                      onClick={() => window.open(job.post_url, '_blank')}
+                      onClick={() => handleApplyClick(job)}
+                      className="px-3"
                     >
-                      <ExternalLink className="h-4 w-4 mr-2" />
-                      View Job
+                      {getApplicationStatusIcon(job.id) || 'Apply'}
                     </Button>
-                  )}
+                  </div>
                 </CardContent>
               </Card>
             ))}
           </div>
         )}
 
-        {/* Footer */}
-        <footer className="mt-12 pt-8 border-t border-gray-200">
-          <div className="text-center text-sm text-gray-500">
-            <p>Job data is automatically updated every 2 hours via GitHub Actions</p>
-            <p className="mt-1">
-              Last updated: {jobs.length > 0 ? formatDate(jobs[0]?.scraped_at) : 'Unknown'}
-            </p>
-          </div>
-        </footer>
+          {/* Footer */}
+          <footer className="mt-12 pt-8 border-t border-gray-200">
+            <div className="text-center text-sm text-gray-500">
+              <p>Job data is automatically updated every 2 hours via GitHub Actions</p>
+              <p className="mt-1">
+                Last updated: {jobs.length > 0 ? formatDate(jobs[0]?.scraped_at) : 'Unknown'}
+              </p>
+            </div>
+          </footer>
+        </div>
       </div>
+
+      {/* Application Modal */}
+      <ApplicationModal
+        isOpen={modalOpen}
+        onClose={() => setModalOpen(false)}
+        job={selectedJob}
+        onConfirm={handleApplicationConfirm}
+      />
     </div>
   );
 }
