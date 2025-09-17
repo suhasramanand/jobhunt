@@ -24,16 +24,10 @@ jobs:
       with:
         python-version: '3.11'
     
-    - name: Install system dependencies
-      run: |
-        sudo apt-get update
-        sudo apt-get install -y libnss3-dev libatk-bridge2.0-dev libdrm2 libxkbcommon0 libxcomposite1 libxdamage1 libxrandr2 libgbm1 libxss1 libasound2t64
-    
     - name: Install Python dependencies
       run: |
         cd scraper
         pip install -r requirements.txt
-        playwright install chromium
     
     - name: Run scraper
       run: |
