@@ -12,6 +12,7 @@ import json
 import hashlib
 import requests
 import random
+import itertools
 from datetime import datetime, timedelta
 from typing import List, Dict, Optional, Set
 from urllib.parse import urljoin, urlparse
@@ -48,6 +49,16 @@ VISA_NO_SPONSORSHIP_KEYWORDS = [
     'green card required', 'permanent resident required', 'no h1b', 'no h1-b'
 ]
 
+# Proxy rotation configuration - using more reliable free proxies
+PROXY_LIST = [
+    # More reliable free proxies
+    None,  # Direct connection as fallback
+    {'http': 'http://103.152.112.162:80', 'https': 'http://103.152.112.162:80'},
+    {'http': 'http://8.219.176.202:8080', 'https': 'http://8.219.176.202:8080'},
+    {'http': 'http://47.74.152.29:8888', 'https': 'http://47.74.152.29:8888'},
+    None,  # Another direct connection option
+]
+
 class RobustJobScraper:
     """Robust job scraper using multiple approaches with human behavior simulation"""
     
@@ -64,6 +75,10 @@ class RobustJobScraper:
             'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/14.1.1 Safari/605.1.15',
             'Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
         ]
+        
+        # Proxy rotation
+        self.proxy_cycle = itertools.cycle(PROXY_LIST)
+        self.current_proxy = next(self.proxy_cycle)
         
         # Session for connection reuse
         self.session = requests.Session()
@@ -84,6 +99,32 @@ class RobustJobScraper:
     def get_random_user_agent(self):
         """Get a random user agent"""
         return random.choice(self.user_agents)
+    
+    def rotate_proxy(self):
+        """Rotate to the next proxy in the list"""
+        self.current_proxy = next(self.proxy_cycle)
+        logger.info(f"Rotated to proxy: {self.current_proxy}")
+        # Update session proxies
+        self.session.proxies.update(self.current_proxy)
+    
+    def get_working_proxy(self, url, max_retries=3):
+        """Get a working proxy by testing it against the target URL"""
+        for attempt in range(max_retries):
+            try:
+                # Test the current proxy
+                test_response = self.session.get(url, timeout=10, proxies=self.current_proxy)
+                if test_response.status_code == 200:
+                    logger.info(f"Proxy working: {self.current_proxy}")
+                    return self.current_proxy
+            except Exception as e:
+                logger.warning(f"Proxy failed: {self.current_proxy} - {e}")
+            
+            # Rotate to next proxy
+            self.rotate_proxy()
+        
+        # If no proxy works, return None (direct connection)
+        logger.warning("No working proxy found, using direct connection")
+        return None
     
     def human_delay(self, min_seconds=1, max_seconds=3):
         """Simulate human delay between requests"""
@@ -122,8 +163,19 @@ class RobustJobScraper:
             if os.path.exists(CSV_FILE_PATH):
                 with open(CSV_FILE_PATH, 'r', newline='', encoding='utf-8') as file:
                     reader = csv.DictReader(file)
-                    self.existing_jobs = list(reader)
-                    logger.info(f"Loaded {len(self.existing_jobs)} existing jobs")
+                    jobs = list(reader)
+                    # Clean up any corrupted data (merge conflict markers, etc.)
+                    cleaned_jobs = []
+                    for job in jobs:
+                        # Skip jobs with merge conflict markers or invalid data
+                        if any(marker in str(job.values()) for marker in ['<<<<<<< HEAD', '=======', '>>>>>>>']):
+                            logger.warning(f"Skipping corrupted job data: {job}")
+                            continue
+                        # Ensure all required fields are present and valid
+                        if all(key in job and job[key] and job[key].strip() for key in ['id', 'title', 'company']):
+                            cleaned_jobs.append(job)
+                    self.existing_jobs = cleaned_jobs
+                    logger.info(f"Loaded {len(self.existing_jobs)} existing jobs (cleaned)")
             else:
                 logger.info("No existing jobs file found, starting fresh")
         except Exception as e:
@@ -199,24 +251,33 @@ class RobustJobScraper:
             return 'SDE'
     
     def scrape_indeed_simple(self) -> List[Dict]:
-        """Indeed scraper with human behavior simulation"""
+        """Indeed scraper with human behavior simulation and proxy rotation"""
         jobs = []
         try:
+            # Get a working proxy for Indeed
+            indeed_url = 'https://www.indeed.com'
+            working_proxy = self.get_working_proxy(indeed_url)
+            
             # First, visit the main Indeed page to establish session
-            logger.info("Establishing session with Indeed...")
-            main_page = self.session.get('https://www.indeed.com', 
+            logger.info("Establishing session with Indeed using proxy...")
+            main_page = self.session.get(indeed_url, 
                                        headers=self.get_realistic_headers(), 
-                                       timeout=30)
+                                       timeout=30,
+                                       proxies=working_proxy if working_proxy else None)
             main_page.raise_for_status()
             self.human_delay(2, 4)
             
+            # Rotate proxy for the search request
+            self.rotate_proxy()
+            
             # Now search for jobs with realistic behavior
             search_url = "https://www.indeed.com/jobs?q=software+engineer+entry+level&l=remote&fromage=1&sort=date"
-            logger.info("Searching for jobs on Indeed...")
+            logger.info("Searching for jobs on Indeed with proxy rotation...")
             
             response = self.session.get(search_url, 
                                       headers=self.get_realistic_headers('https://www.indeed.com'), 
-                                      timeout=30)
+                                      timeout=30,
+                                      proxies=self.current_proxy)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -281,17 +342,21 @@ class RobustJobScraper:
         return jobs
     
     def scrape_remote_ok(self) -> List[Dict]:
-        """Scrape jobs from RemoteOK with human behavior simulation"""
+        """Scrape jobs from RemoteOK with human behavior simulation and proxy rotation"""
         jobs = []
         try:
-            logger.info("Accessing RemoteOK...")
+            logger.info("Accessing RemoteOK with proxy rotation...")
             self.human_delay(1, 2)
+            
+            # Rotate proxy for RemoteOK
+            self.rotate_proxy()
             
             url = "https://remoteok.io/remote-dev-jobs"
             
             response = self.session.get(url, 
                                       headers=self.get_realistic_headers(), 
-                                      timeout=30)
+                                      timeout=30,
+                                      proxies=self.current_proxy if self.current_proxy else None)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -361,17 +426,21 @@ class RobustJobScraper:
         return jobs
     
     def scrape_stackoverflow_jobs(self) -> List[Dict]:
-        """Scrape jobs from Stack Overflow Jobs with human behavior simulation"""
+        """Scrape jobs from Stack Overflow Jobs with human behavior simulation and proxy rotation"""
         jobs = []
         try:
-            logger.info("Accessing StackOverflow Jobs...")
+            logger.info("Accessing StackOverflow Jobs with proxy rotation...")
             self.human_delay(1, 3)
+            
+            # Rotate proxy for StackOverflow
+            self.rotate_proxy()
             
             url = "https://stackoverflow.com/jobs"
             
             response = self.session.get(url, 
                                       headers=self.get_realistic_headers(), 
-                                      timeout=30)
+                                      timeout=30,
+                                      proxies=self.current_proxy if self.current_proxy else None)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -440,14 +509,18 @@ class RobustJobScraper:
         """Scrape jobs from We Work Remotely with human behavior simulation"""
         jobs = []
         try:
-            logger.info("Accessing We Work Remotely...")
+            logger.info("Accessing We Work Remotely with proxy rotation...")
             self.human_delay(1, 2)
+            
+            # Rotate proxy for We Work Remotely
+            self.rotate_proxy()
             
             url = "https://weworkremotely.com/categories/remote-programming-jobs"
             
             response = self.session.get(url, 
                                       headers=self.get_realistic_headers(), 
-                                      timeout=30)
+                                      timeout=30,
+                                      proxies=self.current_proxy if self.current_proxy else None)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -518,14 +591,18 @@ class RobustJobScraper:
         """Scrape jobs from Jobspresso with human behavior simulation"""
         jobs = []
         try:
-            logger.info("Accessing Jobspresso...")
+            logger.info("Accessing Jobspresso with proxy rotation...")
             self.human_delay(1, 2)
+            
+            # Rotate proxy for Jobspresso
+            self.rotate_proxy()
             
             url = "https://jobspresso.co/remote-jobs/development/"
             
             response = self.session.get(url, 
                                       headers=self.get_realistic_headers(), 
-                                      timeout=30)
+                                      timeout=30,
+                                      proxies=self.current_proxy if self.current_proxy else None)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
@@ -599,15 +676,19 @@ class RobustJobScraper:
         """Scrape jobs using GitHub Jobs API (if available)"""
         jobs = []
         try:
-            logger.info("Trying GitHub Jobs API...")
+            logger.info("Trying GitHub Jobs API with proxy rotation...")
             self.human_delay(1, 2)
+            
+            # Rotate proxy for GitHub Jobs API
+            self.rotate_proxy()
             
             # Try to access GitHub Jobs API or similar
             api_url = "https://jobs.github.com/positions.json?description=software+engineer&location=remote"
             
             response = self.session.get(api_url, 
                                       headers=self.get_realistic_headers(), 
-                                      timeout=30)
+                                      timeout=30,
+                                      proxies=self.current_proxy)
             response.raise_for_status()
             
             data = response.json()
@@ -660,14 +741,18 @@ class RobustJobScraper:
         """Scrape jobs from Remote.co"""
         jobs = []
         try:
-            logger.info("Accessing Remote.co...")
+            logger.info("Accessing Remote.co with proxy rotation...")
             self.human_delay(1, 2)
+            
+            # Rotate proxy for Remote.co
+            self.rotate_proxy()
             
             url = "https://remote.co/remote-jobs/developer/"
             
             response = self.session.get(url, 
                                       headers=self.get_realistic_headers(), 
-                                      timeout=30)
+                                      timeout=30,
+                                      proxies=self.current_proxy if self.current_proxy else None)
             response.raise_for_status()
             
             soup = BeautifulSoup(response.content, 'html.parser')
