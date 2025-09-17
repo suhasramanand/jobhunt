@@ -21,6 +21,7 @@ function App() {
   const [selectedRole, setSelectedRole] = useState('All');
   const [visaSponsorshipOnly, setVisaSponsorshipOnly] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
   const [activeView, setActiveView] = useState('all-jobs');
   const [modalOpen, setModalOpen] = useState(false);
   const [selectedJob, setSelectedJob] = useState(null);
@@ -180,51 +181,45 @@ function App() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      {/* Sidebar */}
-      <Sidebar 
-        isOpen={sidebarOpen}
-        onClose={() => setSidebarOpen(false)}
-        activeView={activeView}
-        onViewChange={setActiveView}
-      />
-
-      {/* Header */}
-      <header className="bg-white shadow-sm border-b">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center space-x-3">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setSidebarOpen(true)}
-                className="lg:hidden"
-              >
-                <Menu className="h-5 w-5" />
-              </Button>
-              <Users className="h-8 w-8 text-blue-600" />
-              <h1 className="text-2xl font-bold text-gray-900">Job Aggregator</h1>
-            </div>
-            <div className="flex items-center space-x-2 text-sm text-gray-500">
-              <Clock className="h-4 w-4" />
-              <span>Updated every 2 hours</span>
-            </div>
-          </div>
-        </div>
-      </header>
-
       <div className="flex">
-        {/* Sidebar for desktop */}
-        <div className="hidden lg:block w-64 bg-white shadow-sm">
-          <Sidebar 
-            isOpen={true}
-            onClose={() => {}}
-            activeView={activeView}
-            onViewChange={setActiveView}
-          />
-        </div>
+        {/* Sidebar */}
+        <Sidebar 
+          isOpen={sidebarOpen}
+          onClose={() => setSidebarOpen(false)}
+          activeView={activeView}
+          onViewChange={setActiveView}
+          collapsed={sidebarCollapsed}
+          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+        />
 
-        {/* Main content */}
-        <div className="flex-1 max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Main content area */}
+        <div className="flex-1 flex flex-col min-h-screen">
+          {/* Header */}
+          <header className="bg-white shadow-sm border-b">
+            <div className="px-4 sm:px-6 lg:px-8">
+              <div className="flex justify-between items-center h-16">
+                <div className="flex items-center space-x-3">
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setSidebarOpen(!sidebarOpen)}
+                    className="lg:hidden"
+                  >
+                    <Menu className="h-5 w-5" />
+                  </Button>
+                  <Users className="h-8 w-8 text-blue-600" />
+                  <h1 className="text-2xl font-bold text-gray-900">Job Aggregator</h1>
+                </div>
+                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                  <Clock className="h-4 w-4" />
+                  <span>Updated every 2 hours</span>
+                </div>
+              </div>
+            </div>
+          </header>
+
+          {/* Main content */}
+          <div className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
         {/* Filters */}
         <Card className="mb-8">
           <CardHeader>
@@ -370,15 +365,16 @@ function App() {
           </div>
         )}
 
-          {/* Footer */}
-          <footer className="mt-12 pt-8 border-t border-gray-200">
-            <div className="text-center text-sm text-gray-500">
-              <p>Job data is automatically updated every 2 hours via GitHub Actions</p>
-              <p className="mt-1">
-                Last updated: {jobs.length > 0 ? formatDate(jobs[0]?.scraped_at) : 'Unknown'}
-              </p>
-            </div>
-          </footer>
+            {/* Footer */}
+            <footer className="mt-12 pt-8 border-t border-gray-200">
+              <div className="text-center text-sm text-gray-500">
+                <p>Job data is automatically updated every 2 hours via GitHub Actions</p>
+                <p className="mt-1">
+                  Last updated: {jobs.length > 0 ? formatDate(jobs[0]?.scraped_at) : 'Unknown'}
+                </p>
+              </div>
+            </footer>
+          </div>
         </div>
       </div>
 
