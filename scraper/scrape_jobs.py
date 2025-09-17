@@ -203,7 +203,9 @@ class JobScraper:
         jobs = []
         try:
             page = await browser.new_page()
-            await page.goto(JOB_BOARDS['indeed']['url'], wait_until='networkidle')
+            # Set longer timeout and wait for page load
+            page.set_default_timeout(60000)  # 60 seconds
+            await page.goto(JOB_BOARDS['indeed']['url'], wait_until='domcontentloaded', timeout=60000)
             
             # Search for jobs
             await page.fill('#text-input-what', 'software engineer entry level')
