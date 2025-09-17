@@ -180,20 +180,20 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen bg-gray-50">
-      <div className="flex">
-        {/* Sidebar */}
-        <Sidebar 
-          isOpen={sidebarOpen}
-          onClose={() => setSidebarOpen(false)}
-          activeView={activeView}
-          onViewChange={setActiveView}
-          collapsed={sidebarCollapsed}
-          onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
-        />
+      <div className="min-h-screen bg-gray-50">
+        <div className="flex h-screen">
+          {/* Sidebar */}
+          <Sidebar 
+            isOpen={sidebarOpen}
+            onClose={() => setSidebarOpen(false)}
+            activeView={activeView}
+            onViewChange={setActiveView}
+            collapsed={sidebarCollapsed}
+            onToggleCollapse={() => setSidebarCollapsed(!sidebarCollapsed)}
+          />
 
-        {/* Main content area */}
-        <div className="flex-1 flex flex-col min-h-screen">
+          {/* Main content area */}
+          <div className="flex-1 flex flex-col min-h-screen lg:ml-0 overflow-y-auto">
           {/* Header */}
           <header className="bg-white shadow-sm border-b border-gray-200">
             <div className="px-4 sm:px-6 lg:px-8">

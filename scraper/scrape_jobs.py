@@ -66,14 +66,24 @@ JOB_BOARDS = {
         },
         'parser': 'indeed_parser'
     },
-    'google_careers': {
-        'url': 'https://careers.google.com/jobs/results/',
+    'glassdoor': {
+        'url': 'https://www.glassdoor.com/Job/jobs.htm',
         'params': {
-            'q': 'software engineer',
-            'location': 'United States',
-            'sort_by': 'date'
+            'sc.keyword': 'software engineer entry level',
+            'locT': 'C',
+            'locId': '1',  # United States
+            'fromAge': '1'  # Last 24 hours
         },
-        'parser': 'google_careers_parser'
+        'parser': 'glassdoor_parser'
+    },
+    'ziprecruiter': {
+        'url': 'https://www.ziprecruiter.com/jobs-search',
+        'params': {
+            'search': 'software engineer entry level',
+            'location': 'United States',
+            'days': '1'
+        },
+        'parser': 'ziprecruiter_parser'
     },
     'linkedin': {
         'url': 'https://www.linkedin.com/jobs/search/',
@@ -81,9 +91,42 @@ JOB_BOARDS = {
             'keywords': 'software engineer entry level',
             'location': 'United States',
             'f_TPR': 'r86400',  # Last 24 hours
-            'sortBy': 'DD'
+            'f_E': '1,2',  # Entry level and Associate
+            'f_TPR': 'r86400'  # Posted in last 24 hours
         },
         'parser': 'linkedin_parser'
+    },
+    'greenhouse': {
+        'url': 'https://boards-api.greenhouse.io/v1/boards',
+        'params': {
+            'q': 'software engineer',
+            'location': 'United States'
+        },
+        'parser': 'greenhouse_parser'
+    },
+    'lever': {
+        'url': 'https://jobs.lever.co/api/',
+        'params': {
+            'q': 'software engineer',
+            'location': 'United States'
+        },
+        'parser': 'lever_parser'
+    },
+    'angellist': {
+        'url': 'https://angel.co/jobs',
+        'params': {
+            'q': 'software engineer',
+            'location': 'United States'
+        },
+        'parser': 'angellist_parser'
+    },
+    'wellfound': {
+        'url': 'https://wellfound.com/role/l/software-engineer',
+        'params': {
+            'q': 'software engineer',
+            'location': 'United States'
+        },
+        'parser': 'wellfound_parser'
     }
 }
 
@@ -379,54 +422,54 @@ class JobScraper:
             logger.error(f"Fallback Indeed scraping failed: {e}")
             raise
     
-    async def scrape_google_careers(self, browser) -> List[Dict]:
-        """Scrape jobs from Google Careers"""
+    async def scrape_glassdoor(self, browser) -> List[Dict]:
+        """Scrape jobs from Glassdoor"""
         jobs = []
         try:
             page = await browser.new_page()
-            await page.goto(JOB_BOARDS['google_careers']['url'], wait_until='networkidle')
+            page.set_default_timeout(60000)
             
-            # Search for entry level software positions
-            search_input = await page.query_selector('input[type="search"]')
-            if search_input:
-                await search_input.fill('software engineer entry level')
-                await page.keyboard.press('Enter')
-                await page.wait_for_load_state('networkidle')
+            await page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            
+            # Glassdoor jobs search URL
+            search_url = "https://www.glassdoor.com/Job/jobs.htm?sc.keyword=software%20engineer%20entry%20level&locT=C&locId=1&fromAge=1&sortBy=date"
+            
+            await page.goto(search_url, wait_until='domcontentloaded', timeout=60000)
+            await page.wait_for_timeout(3000)
             
             # Extract job listings
-            job_elements = await page.query_selector_all('[data-test-id="job-card"]')
+            job_elements = await page.query_selector_all('[data-test="jobListing"]')
             
-            for element in job_elements[:15]:  # Limit results
+            for element in job_elements[:15]:  # Limit to first 15 results
                 try:
-                    title_elem = await element.query_selector('h3 a')
-                    company_elem = await element.query_selector('[data-test-id="job-card-company"]')
-                    location_elem = await element.query_selector('[data-test-id="job-card-location"]')
+                    title_elem = await element.query_selector('[data-test="job-title"] a')
+                    company_elem = await element.query_selector('[data-test="employer-name"]')
+                    location_elem = await element.query_selector('[data-test="job-location"]')
                     
                     if not title_elem:
                         continue
-                    
+                        
                     title = await title_elem.inner_text()
-                    company = await company_elem.inner_text() if company_elem else 'Google'
-                    location = await location_elem.inner_text() if location_elem else 'Various'
+                    company = await company_elem.inner_text() if company_elem else 'Unknown'
+                    location = await location_elem.inner_text() if location_elem else 'Remote'
                     
-                    # Get job URL - Google Careers uses specific job ID in URL
+                    # Get job URL
                     job_url = await title_elem.get_attribute('href')
-                    if job_url:
-                        if not job_url.startswith('http'):
-                            job_url = urljoin('https://careers.google.com', job_url)
-                    else:
-                        # Skip if no URL found
-                        continue
+                    if job_url and not job_url.startswith('http'):
+                        job_url = urljoin('https://www.glassdoor.com', job_url)
                     
-                    # For Google, assume visa sponsorship is available
+                    # Check filters
                     job_text = f"{title} {company}".lower()
-                    
                     if not self.check_experience_requirement(job_text):
                         continue
                     
-                    # Validate that we have a real URL
+                    if not self.check_visa_sponsorship(job_text):
+                        continue
+                    
+                    # Validate URL
                     if not job_url or not job_url.startswith('http'):
-                        logger.warning(f"Skipping Google job with invalid URL: {job_url}")
                         continue
                     
                     job_data = {
@@ -436,9 +479,9 @@ class JobScraper:
                         'location': location.strip(),
                         'role': self.categorize_role(title, ''),
                         'post_url': job_url,
-                        'posted_at': 'Recently',  # Google doesn't show specific dates
-                        'experience_text': 'Entry level software engineering position',
-                        'visa_sponsorship': True,  # Google typically sponsors
+                        'posted_at': 'Recently',
+                        'experience_text': 'Software engineering position',
+                        'visa_sponsorship': True,
                         'snippet': f'Software engineering position at {company}',
                         'scraped_at': datetime.now().isoformat()
                     }
@@ -446,13 +489,339 @@ class JobScraper:
                     jobs.append(job_data)
                     
                 except Exception as e:
-                    logger.warning(f"Error processing Google job: {e}")
+                    logger.warning(f"Error processing Glassdoor job: {e}")
                     continue
             
             await page.close()
             
         except Exception as e:
-            logger.error(f"Error scraping Google Careers: {e}")
+            logger.error(f"Error scraping Glassdoor: {e}")
+        
+        return jobs
+    
+    async def scrape_linkedin(self, browser) -> List[Dict]:
+        """Scrape jobs from LinkedIn"""
+        jobs = []
+        try:
+            page = await browser.new_page()
+            page.set_default_timeout(60000)
+            
+            # Add user agent
+            await page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            
+            # LinkedIn jobs search URL
+            search_url = "https://www.linkedin.com/jobs/search/?keywords=software%20engineer%20entry%20level&location=United%20States&f_TPR=r86400&f_E=1%2C2&sortBy=DD"
+            
+            await page.goto(search_url, wait_until='domcontentloaded', timeout=60000)
+            await page.wait_for_timeout(3000)
+            
+            # Extract job listings
+            job_elements = await page.query_selector_all('.jobs-search-results__list-item')
+            
+            for element in job_elements[:15]:  # Limit to first 15 results
+                try:
+                    title_elem = await element.query_selector('.job-search-card__title a')
+                    company_elem = await element.query_selector('.job-search-card__subtitle a')
+                    location_elem = await element.query_selector('.job-search-card__location')
+                    snippet_elem = await element.query_selector('.job-search-card__snippet')
+                    
+                    if not title_elem:
+                        continue
+                        
+                    title = await title_elem.inner_text()
+                    company = await company_elem.inner_text() if company_elem else 'Unknown'
+                    location = await location_elem.inner_text() if location_elem else 'Remote'
+                    snippet = await snippet_elem.inner_text() if snippet_elem else ''
+                    
+                    # Get job URL
+                    job_url = await title_elem.get_attribute('href')
+                    if job_url and not job_url.startswith('http'):
+                        job_url = urljoin('https://www.linkedin.com', job_url)
+                    
+                    # Check filters
+                    job_text = f"{title} {snippet}".lower()
+                    if not self.check_experience_requirement(job_text):
+                        continue
+                    
+                    if not self.check_visa_sponsorship(job_text):
+                        continue
+                    
+                    # Validate URL
+                    if not job_url or not job_url.startswith('http'):
+                        continue
+                    
+                    job_data = {
+                        'id': self.generate_job_id(title, company, job_url),
+                        'title': title.strip(),
+                        'company': company.strip(),
+                        'location': location.strip(),
+                        'role': self.categorize_role(title, snippet),
+                        'post_url': job_url,
+                        'posted_at': 'Recently',
+                        'experience_text': snippet[:200] + '...' if len(snippet) > 200 else snippet,
+                        'visa_sponsorship': True,
+                        'snippet': snippet.strip(),
+                        'scraped_at': datetime.now().isoformat()
+                    }
+                    
+                    jobs.append(job_data)
+                    
+                except Exception as e:
+                    logger.warning(f"Error processing LinkedIn job: {e}")
+                    continue
+            
+            await page.close()
+            
+        except Exception as e:
+            logger.error(f"Error scraping LinkedIn: {e}")
+        
+        return jobs
+    
+    async def scrape_ziprecruiter(self, browser) -> List[Dict]:
+        """Scrape jobs from ZipRecruiter"""
+        jobs = []
+        try:
+            page = await browser.new_page()
+            page.set_default_timeout(60000)
+            
+            await page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            
+            # ZipRecruiter jobs search URL
+            search_url = "https://www.ziprecruiter.com/jobs-search?search=software+engineer+entry+level&location=United+States&days=1"
+            
+            await page.goto(search_url, wait_until='domcontentloaded', timeout=60000)
+            await page.wait_for_timeout(3000)
+            
+            # Extract job listings
+            job_elements = await page.query_selector_all('.job_content')
+            
+            for element in job_elements[:15]:  # Limit to first 15 results
+                try:
+                    title_elem = await element.query_selector('.job_link')
+                    company_elem = await element.query_selector('.job_org')
+                    location_elem = await element.query_selector('.job_location')
+                    
+                    if not title_elem:
+                        continue
+                        
+                    title = await title_elem.inner_text()
+                    company = await company_elem.inner_text() if company_elem else 'Unknown'
+                    location = await location_elem.inner_text() if location_elem else 'Remote'
+                    
+                    # Get job URL
+                    job_url = await title_elem.get_attribute('href')
+                    if job_url and not job_url.startswith('http'):
+                        job_url = urljoin('https://www.ziprecruiter.com', job_url)
+                    
+                    # Check filters
+                    job_text = f"{title} {company}".lower()
+                    if not self.check_experience_requirement(job_text):
+                        continue
+                    
+                    if not self.check_visa_sponsorship(job_text):
+                        continue
+                    
+                    # Validate URL
+                    if not job_url or not job_url.startswith('http'):
+                        continue
+                    
+                    job_data = {
+                        'id': self.generate_job_id(title, company, job_url),
+                        'title': title.strip(),
+                        'company': company.strip(),
+                        'location': location.strip(),
+                        'role': self.categorize_role(title, ''),
+                        'post_url': job_url,
+                        'posted_at': 'Recently',
+                        'experience_text': 'Software engineering position',
+                        'visa_sponsorship': True,
+                        'snippet': f'Software engineering position at {company}',
+                        'scraped_at': datetime.now().isoformat()
+                    }
+                    
+                    jobs.append(job_data)
+                    
+                except Exception as e:
+                    logger.warning(f"Error processing ZipRecruiter job: {e}")
+                    continue
+            
+            await page.close()
+            
+        except Exception as e:
+            logger.error(f"Error scraping ZipRecruiter: {e}")
+        
+        return jobs
+    
+    async def scrape_wellfound(self, browser) -> List[Dict]:
+        """Scrape jobs from Wellfound (formerly AngelList)"""
+        jobs = []
+        try:
+            page = await browser.new_page()
+            page.set_default_timeout(60000)
+            
+            await page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            
+            # Wellfound software engineer jobs
+            search_url = "https://wellfound.com/role/l/software-engineer"
+            await page.goto(search_url, wait_until='domcontentloaded', timeout=60000)
+            await page.wait_for_timeout(3000)
+            
+            # Extract job listings
+            job_elements = await page.query_selector_all('.job-card, .job-listing, [data-qa="job-card"]')
+            
+            for element in job_elements[:10]:  # Limit to first 10 results
+                try:
+                    title_elem = await element.query_selector('h3 a, .job-title a, a[href*="/job/"]')
+                    company_elem = await element.query_selector('.company-name, .job-company')
+                    location_elem = await element.query_selector('.job-location, .location')
+                    
+                    if not title_elem:
+                        continue
+                        
+                    title = await title_elem.inner_text()
+                    company = await company_elem.inner_text() if company_elem else 'Startup'
+                    location = await location_elem.inner_text() if location_elem else 'Remote'
+                    
+                    # Get job URL
+                    job_url = await title_elem.get_attribute('href')
+                    if job_url and not job_url.startswith('http'):
+                        job_url = urljoin('https://wellfound.com', job_url)
+                    
+                    # Check filters
+                    job_text = f"{title} {company}".lower()
+                    if not self.check_experience_requirement(job_text):
+                        continue
+                    
+                    if not self.check_visa_sponsorship(job_text):
+                        continue
+                    
+                    if not job_url or not job_url.startswith('http'):
+                        continue
+                    
+                    job_data = {
+                        'id': self.generate_job_id(title, company, job_url),
+                        'title': title.strip(),
+                        'company': company.strip(),
+                        'location': location.strip(),
+                        'role': self.categorize_role(title, ''),
+                        'post_url': job_url,
+                        'posted_at': 'Recently',
+                        'experience_text': 'Software engineering position at startup',
+                        'visa_sponsorship': True,
+                        'snippet': f'Software engineering position at {company}',
+                        'scraped_at': datetime.now().isoformat()
+                    }
+                    
+                    jobs.append(job_data)
+                    
+                except Exception as e:
+                    logger.warning(f"Error processing Wellfound job: {e}")
+                    continue
+            
+            await page.close()
+            
+        except Exception as e:
+            logger.error(f"Error scraping Wellfound: {e}")
+        
+        return jobs
+    
+    async def scrape_lever(self, browser) -> List[Dict]:
+        """Scrape jobs from Lever-powered company sites"""
+        jobs = []
+        try:
+            # List of popular companies using Lever
+            lever_companies = [
+                'netflix.com',
+                'spotify.com',
+                'slack.com',
+                'dropbox.com',
+                'twitch.tv',
+                'coinbase.com'
+            ]
+            
+            for company in lever_companies:
+                try:
+                    page = await browser.new_page()
+                    page.set_default_timeout(30000)
+                    
+                    # Try to find Lever job board
+                    careers_urls = [
+                        f"https://{company}/careers",
+                        f"https://{company}/jobs",
+                        f"https://jobs.lever.co/{company.replace('.com', '').replace('.tv', '').replace('.co', '')}"
+                    ]
+                    
+                    for url in careers_urls:
+                        try:
+                            await page.goto(url, wait_until='domcontentloaded', timeout=15000)
+                            await page.wait_for_timeout(2000)
+                            
+                            # Look for job listings
+                            job_elements = await page.query_selector_all('.posting, .job, [data-qa="posting"]')
+                            
+                            if job_elements:
+                                for element in job_elements[:3]:  # Limit per company
+                                    try:
+                                        title_elem = await element.query_selector('a, .posting-title, h3')
+                                        location_elem = await element.query_selector('.posting-categories, .location')
+                                        
+                                        if not title_elem:
+                                            continue
+                                            
+                                        title = await title_elem.inner_text()
+                                        location = await location_elem.inner_text() if location_elem else 'Various'
+                                        
+                                        # Get job URL
+                                        job_url = await title_elem.get_attribute('href')
+                                        if job_url and not job_url.startswith('http'):
+                                            job_url = urljoin(url, job_url)
+                                        
+                                        # Check if it's entry level
+                                        job_text = title.lower()
+                                        if not self.check_experience_requirement(job_text):
+                                            continue
+                                        
+                                        if not job_url or not job_url.startswith('http'):
+                                            continue
+                                        
+                                        job_data = {
+                                            'id': self.generate_job_id(title, company, job_url),
+                                            'title': title.strip(),
+                                            'company': company.replace('.com', '').replace('.tv', '').replace('.co', '').title(),
+                                            'location': location.strip(),
+                                            'role': self.categorize_role(title, ''),
+                                            'post_url': job_url,
+                                            'posted_at': 'Recently',
+                                            'experience_text': 'Software engineering position',
+                                            'visa_sponsorship': True,
+                                            'snippet': f'Software engineering position at {company}',
+                                            'scraped_at': datetime.now().isoformat()
+                                        }
+                                        
+                                        jobs.append(job_data)
+                                        
+                                    except Exception as e:
+                                        logger.warning(f"Error processing Lever job: {e}")
+                                        continue
+                                break  # Found jobs, move to next company
+                                
+                        except Exception as e:
+                            continue  # Try next URL
+                    
+                    await page.close()
+                    
+                except Exception as e:
+                    logger.warning(f"Error scraping {company}: {e}")
+                    continue
+            
+        except Exception as e:
+            logger.error(f"Error scraping Lever: {e}")
         
         return jobs
     
@@ -470,11 +839,35 @@ class JobScraper:
                 all_jobs.extend(indeed_jobs)
                 logger.info(f"Found {len(indeed_jobs)} jobs from Indeed")
                 
-                # Scrape Google Careers
-                logger.info("Scraping Google Careers...")
-                google_jobs = await self.scrape_google_careers(browser)
-                all_jobs.extend(google_jobs)
-                logger.info(f"Found {len(google_jobs)} jobs from Google Careers")
+                # Scrape Glassdoor
+                logger.info("Scraping Glassdoor...")
+                glassdoor_jobs = await self.scrape_glassdoor(browser)
+                all_jobs.extend(glassdoor_jobs)
+                logger.info(f"Found {len(glassdoor_jobs)} jobs from Glassdoor")
+                
+                # Scrape LinkedIn
+                logger.info("Scraping LinkedIn...")
+                linkedin_jobs = await self.scrape_linkedin(browser)
+                all_jobs.extend(linkedin_jobs)
+                logger.info(f"Found {len(linkedin_jobs)} jobs from LinkedIn")
+                
+                # Scrape ZipRecruiter
+                logger.info("Scraping ZipRecruiter...")
+                ziprecruiter_jobs = await self.scrape_ziprecruiter(browser)
+                all_jobs.extend(ziprecruiter_jobs)
+                logger.info(f"Found {len(ziprecruiter_jobs)} jobs from ZipRecruiter")
+                
+                # Scrape Wellfound
+                logger.info("Scraping Wellfound...")
+                wellfound_jobs = await self.scrape_wellfound(browser)
+                all_jobs.extend(wellfound_jobs)
+                logger.info(f"Found {len(wellfound_jobs)} jobs from Wellfound")
+                
+                # Scrape Lever companies
+                logger.info("Scraping Lever companies...")
+                lever_jobs = await self.scrape_lever(browser)
+                all_jobs.extend(lever_jobs)
+                logger.info(f"Found {len(lever_jobs)} jobs from Lever companies")
                 
             finally:
                 await browser.close()
@@ -556,3 +949,4 @@ async def main():
 
 if __name__ == "__main__":
     asyncio.run(main())
+
