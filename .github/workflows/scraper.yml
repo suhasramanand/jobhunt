@@ -51,13 +51,16 @@ jobs:
           echo "changed=false" >> $GITHUB_OUTPUT
         fi
     
-    - name: Commit and push changes
-      if: steps.verify-changed-files.outputs.changed == 'true'
-      run: |
-        git config --local user.email "action@github.com"
-        git config --local user.name "GitHub Action"
-        
-        timestamp=$(date '+%Y-%m-%d %H:%M:%S UTC')
-        git add data/jobs.csv
-        git commit -m "update jobs.csv [$timestamp]"
-        git push
+        - name: Commit and push changes
+          if: steps.verify-changed-files.outputs.changed == 'true'
+          run: |
+            git config --local user.email "action@github.com"
+            git config --local user.name "GitHub Action"
+            
+            timestamp=$(date '+%Y-%m-%d %H:%M:%S UTC')
+            git add data/jobs.csv
+            git commit -m "update jobs.csv [$timestamp]"
+            
+            # Pull latest changes and rebase before pushing
+            git pull --rebase origin main
+            git push

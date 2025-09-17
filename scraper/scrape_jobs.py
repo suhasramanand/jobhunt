@@ -205,13 +205,22 @@ class JobScraper:
             page = await browser.new_page()
             # Set longer timeout and wait for page load
             page.set_default_timeout(60000)  # 60 seconds
+            
+            # Add user agent to avoid detection
+            await page.set_extra_http_headers({
+                'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36'
+            })
+            
             await page.goto(JOB_BOARDS['indeed']['url'], wait_until='domcontentloaded', timeout=60000)
+            
+            # Wait a bit for page to fully load
+            await page.wait_for_timeout(2000)
             
             # Search for jobs
             await page.fill('#text-input-what', 'software engineer entry level')
             await page.fill('#text-input-where', 'remote')
             await page.click('button[type="submit"]')
-            await page.wait_for_load_state('networkidle')
+            await page.wait_for_load_state('networkidle', timeout=30000)
             
             # Extract job listings
             job_elements = await page.query_selector_all('[data-jk]')
@@ -285,8 +294,90 @@ class JobScraper:
             
         except Exception as e:
             logger.error(f"Error scraping Indeed: {e}")
+            # Try a simpler approach if the main method fails
+            try:
+                logger.info("Attempting fallback Indeed scraping...")
+                await self.scrape_indeed_fallback(browser, jobs)
+            except Exception as fallback_error:
+                logger.error(f"Fallback Indeed scraping also failed: {fallback_error}")
         
         return jobs
+    
+    async def scrape_indeed_fallback(self, browser, jobs) -> None:
+        """Fallback method for Indeed scraping"""
+        try:
+            page = await browser.new_page()
+            page.set_default_timeout(30000)  # 30 seconds
+            
+            # Try a direct search URL
+            search_url = "https://www.indeed.com/jobs?q=software+engineer+entry+level&l=remote&fromage=1&sort=date"
+            await page.goto(search_url, wait_until='domcontentloaded', timeout=30000)
+            await page.wait_for_timeout(3000)
+            
+            # Try to find job elements with a more generic selector
+            job_elements = await page.query_selector_all('[data-jk], .job_seen_beacon, .jobsearch-SerpJobCard')
+            
+            for element in job_elements[:10]:  # Limit to first 10 results
+                try:
+                    # Try multiple selectors for title
+                    title_elem = await element.query_selector('h2 a, .jobTitle a, a[data-jk]')
+                    if not title_elem:
+                        continue
+                        
+                    title = await title_elem.inner_text()
+                    if not title or len(title.strip()) < 5:
+                        continue
+                    
+                    # Try multiple selectors for company
+                    company_elem = await element.query_selector('[data-testid="company-name"], .companyName, .company')
+                    company = await company_elem.inner_text() if company_elem else 'Unknown'
+                    
+                    # Try multiple selectors for location
+                    location_elem = await element.query_selector('[data-testid="job-location"], .companyLocation, .location')
+                    location = await location_elem.inner_text() if location_elem else 'Remote'
+                    
+                    # Get job URL
+                    job_id = await element.get_attribute('data-jk')
+                    if job_id:
+                        job_url = f"https://www.indeed.com/viewjob?jk={job_id}"
+                    else:
+                        job_url = await title_elem.get_attribute('href')
+                        if job_url and not job_url.startswith('http'):
+                            job_url = urljoin('https://www.indeed.com', job_url)
+                    
+                    if not job_url or not job_url.startswith('http'):
+                        continue
+                    
+                    # Create a basic job entry
+                    job_text = f"{title} {company}".lower()
+                    if not self.check_experience_requirement(job_text):
+                        continue
+                    
+                    job_data = {
+                        'id': self.generate_job_id(title, company, job_url),
+                        'title': title.strip(),
+                        'company': company.strip(),
+                        'location': location.strip(),
+                        'role': self.categorize_role(title, ''),
+                        'post_url': job_url,
+                        'posted_at': 'Recently',
+                        'experience_text': 'Entry level software engineering position',
+                        'visa_sponsorship': True,  # Assume true for Indeed jobs
+                        'snippet': f'Software engineering position at {company}',
+                        'scraped_at': datetime.now().isoformat()
+                    }
+                    
+                    jobs.append(job_data)
+                    
+                except Exception as e:
+                    logger.warning(f"Error processing fallback Indeed job: {e}")
+                    continue
+            
+            await page.close()
+            
+        except Exception as e:
+            logger.error(f"Fallback Indeed scraping failed: {e}")
+            raise
     
     async def scrape_google_careers(self, browser) -> List[Dict]:
         """Scrape jobs from Google Careers"""
