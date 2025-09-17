@@ -103,16 +103,21 @@ class RobustJobScraper:
     def rotate_proxy(self):
         """Rotate to the next proxy in the list"""
         self.current_proxy = next(self.proxy_cycle)
-        logger.info(f"Rotated to proxy: {self.current_proxy}")
-        # Update session proxies
-        self.session.proxies.update(self.current_proxy)
+        if self.current_proxy is None:
+            logger.info("Rotated to direct connection (no proxy)")
+            # Clear session proxies for direct connection
+            self.session.proxies.clear()
+        else:
+            logger.info(f"Rotated to proxy: {self.current_proxy}")
+            # Update session proxies
+            self.session.proxies.update(self.current_proxy)
     
     def get_working_proxy(self, url, max_retries=3):
         """Get a working proxy by testing it against the target URL"""
         for attempt in range(max_retries):
             try:
                 # Test the current proxy
-                test_response = self.session.get(url, timeout=10, proxies=self.current_proxy)
+                test_response = self.session.get(url, timeout=10, proxies=self.current_proxy if self.current_proxy else None)
                 if test_response.status_code == 200:
                     logger.info(f"Proxy working: {self.current_proxy}")
                     return self.current_proxy
