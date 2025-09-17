@@ -195,7 +195,7 @@ function App() {
         {/* Main content area */}
         <div className="flex-1 flex flex-col min-h-screen">
           {/* Header */}
-          <header className="bg-white shadow-sm border-b">
+          <header className="bg-white shadow-sm border-b border-gray-200">
             <div className="px-4 sm:px-6 lg:px-8">
               <div className="flex justify-between items-center h-16">
                 <div className="flex items-center space-x-3">
@@ -203,14 +203,18 @@ function App() {
                     variant="ghost"
                     size="sm"
                     onClick={() => setSidebarOpen(!sidebarOpen)}
-                    className="lg:hidden"
+                    className="lg:hidden hover:bg-gray-100"
                   >
                     <Menu className="h-5 w-5" />
                   </Button>
-                  <Users className="h-8 w-8 text-blue-600" />
-                  <h1 className="text-2xl font-bold text-gray-900">Job Aggregator</h1>
+                  <div className="flex items-center space-x-3">
+                    <div className="w-8 h-8 bg-blue-600 rounded-lg flex items-center justify-center">
+                      <Users className="h-5 w-5 text-white" />
+                    </div>
+                    <h1 className="text-2xl font-bold text-gray-900">Job Aggregator</h1>
+                  </div>
                 </div>
-                <div className="flex items-center space-x-2 text-sm text-gray-500">
+                <div className="flex items-center space-x-2 text-sm text-gray-500 bg-gray-50 px-3 py-1 rounded-full">
                   <Clock className="h-4 w-4" />
                   <span>Updated every 2 hours</span>
                 </div>
@@ -219,162 +223,170 @@ function App() {
           </header>
 
           {/* Main content */}
-          <div className="flex-1 px-4 sm:px-6 lg:px-8 py-8">
-        {/* Filters */}
-        <Card className="mb-8">
-          <CardHeader>
-            <CardTitle className="flex items-center space-x-2">
-              <Filter className="h-5 w-5" />
-              <span>Filters</span>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* Search */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Search</label>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
-                  <Input
-                    placeholder="Company or job title..."
-                    value={searchTerm}
-                    onChange={(e) => setSearchTerm(e.target.value)}
-                    className="pl-10"
-                  />
-                </div>
-              </div>
-
-              {/* Role Filter */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Role</label>
-                <Select value={selectedRole} onValueChange={setSelectedRole}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select role" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {ROLES.map(role => (
-                      <SelectItem key={role} value={role}>{role}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Visa Sponsorship Toggle */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium text-gray-700">Visa Sponsorship</label>
-                <div className="flex items-center space-x-3 pt-2">
-                  <Switch
-                    id="visa-sponsorship"
-                    checked={visaSponsorshipOnly}
-                    onCheckedChange={setVisaSponsorshipOnly}
-                  />
-                  <label htmlFor="visa-sponsorship" className="text-sm text-gray-600">
-                    Show only jobs with visa sponsorship
-                  </label>
-                </div>
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Results Summary */}
-        <div className="mb-6">
-          <p className="text-gray-600">
-            Showing <span className="font-semibold">{filteredJobs.length}</span> jobs
-            {searchTerm && ` matching "${searchTerm}"`}
-            {selectedRole !== 'All' && ` for ${selectedRole} roles`}
-            {visaSponsorshipOnly && ' with visa sponsorship'}
-          </p>
-        </div>
-
-        {/* Jobs Grid */}
-        {filteredJobs.length === 0 ? (
-          <Card>
-            <CardContent className="py-12 text-center">
-              <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No jobs found</h3>
-              <p className="text-gray-500">Try adjusting your filters or search terms.</p>
-            </CardContent>
-          </Card>
-        ) : (
-          <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
-            {filteredJobs.map((job) => (
-              <Card key={job.id} className="hover:shadow-lg transition-shadow duration-200">
-                <CardHeader className="pb-3">
-                  <div className="flex justify-between items-start">
-                    <div className="flex-1">
-                      <CardTitle className="text-lg leading-tight mb-2">
-                        {job.title}
-                      </CardTitle>
-                      <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
-                        <Building2 className="h-4 w-4" />
-                        <span>{job.company}</span>
-                      </div>
-                      <div className="flex items-center space-x-2 text-sm text-gray-600">
-                        <MapPin className="h-4 w-4" />
-                        <span>{job.location}</span>
+          <div className="flex-1 px-4 sm:px-6 lg:px-8 py-6">
+            <div className="max-w-7xl mx-auto">
+              {/* Filters */}
+              <Card className="mb-6 shadow-sm">
+                <CardHeader className="pb-4">
+                  <CardTitle className="flex items-center space-x-2 text-lg">
+                    <Filter className="h-5 w-5" />
+                    <span>Filters</span>
+                  </CardTitle>
+                </CardHeader>
+                <CardContent>
+                  <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                    {/* Search */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Search</label>
+                      <div className="relative">
+                        <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+                        <Input
+                          placeholder="Company or job title..."
+                          value={searchTerm}
+                          onChange={(e) => setSearchTerm(e.target.value)}
+                          className="pl-10 h-10"
+                        />
                       </div>
                     </div>
-                    <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRoleColor(job.role)}`}>
-                      {job.role}
-                    </span>
-                  </div>
-                </CardHeader>
-                
-                <CardContent className="pt-0">
-                  <p className="text-sm text-gray-600 mb-4 line-clamp-3">
-                    {job.snippet}
-                  </p>
-                  
-                  <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
-                    <span>Posted: {formatDate(job.posted_at)}</span>
-                    {job.visa_sponsorship === 'True' || job.visa_sponsorship === true ? (
-                      <span className="flex items-center space-x-1 text-green-600">
-                        <Globe className="h-3 w-3" />
-                        <span>Visa Sponsorship</span>
-                      </span>
-                    ) : (
-                      <span className="text-gray-400">No sponsorship info</span>
-                    )}
-                  </div>
-                  
-                  <div className="flex space-x-2">
-                    {job.post_url && (
-                      <Button
-                        variant="outline"
-                        size="sm"
-                        className="flex-1"
-                        onClick={() => window.open(job.post_url, '_blank')}
-                      >
-                        <ExternalLink className="h-4 w-4 mr-2" />
-                        View Job
-                      </Button>
-                    )}
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => handleApplyClick(job)}
-                      className="px-3"
-                    >
-                      {getApplicationStatusIcon(job.id) || 'Apply'}
-                    </Button>
+
+                    {/* Role Filter */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Role</label>
+                      <Select value={selectedRole} onValueChange={setSelectedRole}>
+                        <SelectTrigger className="h-10">
+                          <SelectValue placeholder="Select role" />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {ROLES.map(role => (
+                            <SelectItem key={role} value={role}>{role}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+
+                    {/* Visa Sponsorship Toggle */}
+                    <div className="space-y-2">
+                      <label className="text-sm font-medium text-gray-700">Visa Sponsorship</label>
+                      <div className="flex items-center space-x-3 pt-2">
+                        <Switch
+                          id="visa-sponsorship"
+                          checked={visaSponsorshipOnly}
+                          onCheckedChange={setVisaSponsorshipOnly}
+                        />
+                        <label htmlFor="visa-sponsorship" className="text-sm text-gray-600">
+                          Show only jobs with visa sponsorship
+                        </label>
+                      </div>
+                    </div>
                   </div>
                 </CardContent>
               </Card>
-            ))}
-          </div>
-        )}
 
-            {/* Footer */}
-            <footer className="mt-12 pt-8 border-t border-gray-200">
+              {/* Results Summary */}
+              <div className="mb-6">
+                <p className="text-gray-600 text-sm">
+                  Showing <span className="font-semibold text-gray-900">{filteredJobs.length}</span> jobs
+                  {searchTerm && ` matching "${searchTerm}"`}
+                  {selectedRole !== 'All' && ` for ${selectedRole} roles`}
+                  {visaSponsorshipOnly && ' with visa sponsorship'}
+                </p>
+              </div>
+
+              {/* Jobs Grid */}
+              {filteredJobs.length === 0 ? (
+                <Card className="shadow-sm">
+                  <CardContent className="py-16 text-center">
+                    <div className="mx-auto w-16 h-16 bg-gray-100 rounded-full flex items-center justify-center mb-6">
+                      <Users className="h-8 w-8 text-gray-400" />
+                    </div>
+                    <h3 className="text-xl font-semibold text-gray-900 mb-3">No jobs found</h3>
+                    <p className="text-gray-500 max-w-md mx-auto">
+                      Try adjusting your filters or search terms to find more job opportunities.
+                    </p>
+                  </CardContent>
+                </Card>
+              ) : (
+                <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
+                  {filteredJobs.map((job) => (
+                    <Card key={job.id} className="hover:shadow-lg transition-all duration-200 border-0 shadow-sm">
+                      <CardHeader className="pb-4">
+                        <div className="flex justify-between items-start gap-3">
+                          <div className="flex-1 min-w-0">
+                            <CardTitle className="text-lg leading-tight mb-3 line-clamp-2">
+                              {job.title}
+                            </CardTitle>
+                            <div className="flex items-center space-x-2 text-sm text-gray-600 mb-2">
+                              <Building2 className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">{job.company}</span>
+                            </div>
+                            <div className="flex items-center space-x-2 text-sm text-gray-600">
+                              <MapPin className="h-4 w-4 flex-shrink-0" />
+                              <span className="truncate">{job.location}</span>
+                            </div>
+                          </div>
+                          <span className={`px-3 py-1 rounded-full text-xs font-medium whitespace-nowrap ${getRoleColor(job.role)}`}>
+                            {job.role}
+                          </span>
+                        </div>
+                      </CardHeader>
+                      
+                      <CardContent className="pt-0">
+                        <p className="text-sm text-gray-600 mb-4 line-clamp-3 leading-relaxed">
+                          {job.snippet}
+                        </p>
+                        
+                        <div className="flex items-center justify-between text-xs text-gray-500 mb-4">
+                          <span>Posted: {formatDate(job.posted_at)}</span>
+                          {job.visa_sponsorship === 'True' || job.visa_sponsorship === true ? (
+                            <span className="flex items-center space-x-1 text-green-600">
+                              <Globe className="h-3 w-3" />
+                              <span>Visa Sponsorship</span>
+                            </span>
+                          ) : (
+                            <span className="text-gray-400">No sponsorship info</span>
+                          )}
+                        </div>
+                        
+                        <div className="flex space-x-2">
+                          {job.post_url && (
+                            <Button
+                              variant="outline"
+                              size="sm"
+                              className="flex-1 h-9"
+                              onClick={() => window.open(job.post_url, '_blank')}
+                            >
+                              <ExternalLink className="h-4 w-4 mr-2" />
+                              View Job
+                            </Button>
+                          )}
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            onClick={() => handleApplyClick(job)}
+                            className="px-3 h-9"
+                          >
+                            {getApplicationStatusIcon(job.id) || 'Apply'}
+                          </Button>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
+            </div>
+          </div>
+
+          {/* Footer */}
+          <footer className="mt-16 pt-8 pb-6 border-t border-gray-200 bg-white">
+            <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
               <div className="text-center text-sm text-gray-500">
                 <p>Job data is automatically updated every 2 hours via GitHub Actions</p>
-                <p className="mt-1">
+                <p className="mt-2">
                   Last updated: {jobs.length > 0 ? formatDate(jobs[0]?.scraped_at) : 'Unknown'}
                 </p>
               </div>
-            </footer>
-          </div>
+            </div>
+          </footer>
         </div>
       </div>
 
